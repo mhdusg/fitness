@@ -1,0 +1,1033 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="fa">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <meta name="theme-color" content="#e8c96d"/>
+  <meta name="apple-mobile-web-app-capable" content="yes"/>
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent"/>
+  <meta name="apple-mobile-web-app-title" content="FIT PRO"/>
+  <title>FIT PRO - برنامه ریز ورزشی</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: #0a0c10; overscroll-behavior: none; }
+    #root { min-height: 100vh; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <!-- Firebase Compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCIGHIA-lvTpu6RiwdlsmzAU9M9SnnWvQs",
+      authDomain: "fittness-d33bb.firebaseapp.com",
+      databaseURL: "https://fittness-d33bb-default-rtdb.firebaseio.com",
+      projectId: "fittness-d33bb",
+      storageBucket: "fittness-d33bb.firebasestorage.app",
+      messagingSenderId: "705746244428",
+      appId: "1:705746244428:web:38c9800acca1dedb66f5e9"
+    };
+    firebase.initializeApp(firebaseConfig);
+    window._firebaseDB = firebase.database();
+  </script>
+
+  <!-- React -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+
+  <script type="text/babel">
+const { useState, useEffect } = React;
+
+
+const C = {
+  bg: "#0a0c10", surface: "#111318", card: "#181c24", border: "#242836",
+  accent: "#e8c96d", accentDim: "#b8991e", accentGlow: "rgba(232,201,109,0.12)",
+  red: "#e85d5d", green: "#4ecb71", blue: "#5b9cf6",
+  text: "#f0f2f8", muted: "#7a8099", mutedLight: "#a0a8c0",
+};
+const font = "'Cinzel', serif";
+const fontBody = "'Raleway', sans-serif";
+const globalStyles = `
+  @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700;900&family=Raleway:wght@300;400;500;600;700&display=swap');
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: ${C.bg}; color: ${C.text}; font-family: ${fontBody}; }
+  ::-webkit-scrollbar { width: 5px; }
+  ::-webkit-scrollbar-track { background: ${C.surface}; }
+  ::-webkit-scrollbar-thumb { background: ${C.border}; border-radius: 4px; }
+  input, select, textarea { font-family: ${fontBody}; }
+  button { cursor: pointer; font-family: ${fontBody}; }
+`;
+
+const uid = () => Math.random().toString(36).slice(2, 8);
+const defaultData = () => ({
+  movementTabs: [{ id: uid(), name: "سینه" }, { id: uid(), name: "کمر" }, { id: uid(), name: "سرشانه" }, { id: uid(), name: "پا" }, { id: uid(), name: "بازو" }],
+  movements: [],
+  foodCategories: [{ id: uid(), name: "صبحانه" }, { id: uid(), name: "ناهار" }, { id: uid(), name: "شام" }, { id: uid(), name: "میان وعده" }],
+  foods: [],
+});
+
+// ── UI Components ──────────────────────────────────────────────────────────────
+const Btn = ({ children, onClick, variant = "primary", size = "md", disabled, style }) => {
+  const vs = {
+    primary: { background: `linear-gradient(135deg,${C.accent},${C.accentDim})`, color: "#000", border: "none" },
+    ghost: { background: "transparent", color: C.accent, border: `1px solid ${C.border}` },
+    danger: { background: "transparent", color: C.red, border: `1px solid ${C.red}33` },
+    dark: { background: C.card, color: C.text, border: `1px solid ${C.border}` },
+  };
+  const ss = { sm: "5px 11px", md: "10px 20px", lg: "13px 28px" };
+  return <button onClick={onClick} disabled={disabled} style={{ ...vs[variant], padding: ss[size], borderRadius: 8, fontWeight: 600, fontSize: size === "sm" ? 12 : 14, letterSpacing: "0.5px", transition: "all 0.2s", opacity: disabled ? 0.5 : 1, ...(style || {}) }}>{children}</button>;
+};
+
+const Inp = ({ label, value, onChange, placeholder, type = "text", style }) => (
+  <div style={{ marginBottom: 14 }}>
+    {label && <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 600, letterSpacing: "0.5px", textTransform: "uppercase" }}>{label}</div>}
+    <input type={type} value={value} onChange={e => onChange(e.target.value)} placeholder={placeholder}
+      style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 13px", color: C.text, fontSize: 14, outline: "none", ...(style || {}) }}
+      onFocus={e => e.target.style.borderColor = C.accent} onBlur={e => e.target.style.borderColor = C.border} />
+  </div>
+);
+
+const Modal = ({ open, onClose, title, children, width = 480 }) => {
+  if (!open) return null;
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }} onClick={onClose}>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, width, maxWidth: "100%", maxHeight: "90vh", overflow: "auto", padding: 26 }} onClick={e => e.stopPropagation()}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+          <div style={{ fontFamily: font, fontSize: 17, color: C.accent }}>{title}</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: C.muted, fontSize: 20 }}>✕</button>
+        </div>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+// ── Splash ─────────────────────────────────────────────────────────────────────
+const Splash = ({ onEnter }) => (
+  <div style={{ minHeight: "100vh", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", background: `radial-gradient(ellipse at 50% 0%,${C.accentGlow},transparent 70%),${C.bg}`, padding: 40, position: "relative" }}>
+    <div style={{ width: 96, height: 96, borderRadius: "50%", border: `2px solid ${C.accent}`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 40, marginBottom: 32, boxShadow: `0 0 40px ${C.accentGlow}` }}>💪</div>
+    <h1 style={{ fontFamily: font, fontSize: 40, fontWeight: 900, color: C.accent, letterSpacing: 3, marginBottom: 10 }}>FIT PRO</h1>
+    <p style={{ color: C.muted, fontSize: 14, marginBottom: 48, letterSpacing: 3, textTransform: "uppercase" }}>برنامه ریز ورزشی و تغذیه</p>
+    <div style={{ display: "flex", gap: 16, flexWrap: "wrap", justifyContent: "center" }}>
+      {[{ icon: "🏋️", label: "لیست حرکات", key: "movements" }, { icon: "🥗", label: "لیست غذا", key: "foods" }, { icon: "🚀", label: "شروع برنامه", key: "program" }].map(item => (
+        <button key={item.key} onClick={() => onEnter(item.key)}
+          style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: "26px 34px", color: C.text, textAlign: "center", minWidth: 155, transition: "all 0.3s", fontFamily: fontBody }}
+          onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.background = C.accentGlow; e.currentTarget.style.transform = "translateY(-4px)"; }}
+          onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; e.currentTarget.style.transform = "translateY(0)"; }}>
+          <div style={{ fontSize: 34, marginBottom: 10 }}>{item.icon}</div>
+          <div style={{ fontFamily: font, fontSize: 13, color: C.accent, letterSpacing: 1 }}>{item.label}</div>
+        </button>
+      ))}
+    </div>
+    <div style={{ position: "fixed", bottom: 14, left: "50%", transform: "translateX(-50%)", color: C.muted, fontSize: 11, letterSpacing: 2, pointerEvents: "none", zIndex: 10 }}>write by mhdusg</div>
+  </div>
+);
+
+// ── Movements Page ─────────────────────────────────────────────────────────────
+const MovementsPage = ({ data, setData, onBack }) => {
+  const movementTabs = data.movementTabs || [];
+  const movements = data.movements || [];
+  data = { ...data, movementTabs, movements };
+  const [activeTab, setActiveTab] = useState(movementTabs[0]?.id || "");
+  const [showAddTab, setShowAddTab] = useState(false);
+  const [newTabName, setNewTabName] = useState("");
+  const [showAddMove, setShowAddMove] = useState(false);
+  const [moveForm, setMoveForm] = useState({ name: "", tabId: "", subCategory: "", note: "" });
+  const tabMoves = data.movements.filter(m => m.tabId === activeTab);
+  const addTab = () => {
+    if (!newTabName.trim()) return;
+    const tab = { id: uid(), name: newTabName.trim() };
+    setData(d => ({ ...d, movementTabs: [...d.movementTabs, tab] }));
+    setActiveTab(tab.id); setNewTabName(""); setShowAddTab(false);
+  };
+  const deleteTab = (id) => {
+    if (data.movementTabs.length <= 1) return;
+    setData(d => ({ ...d, movementTabs: d.movementTabs.filter(t => t.id !== id), movements: d.movements.filter(m => m.tabId !== id) }));
+    if (activeTab === id) setActiveTab(data.movementTabs.find(t => t.id !== id)?.id || "");
+  };
+  const addMovement = () => {
+    if (!moveForm.name.trim()) return;
+    setData(d => ({ ...d, movements: [...d.movements, { id: uid(), ...moveForm, tabId: moveForm.tabId || activeTab }] }));
+    setMoveForm({ name: "", tabId: "", subCategory: "", note: "" }); setShowAddMove(false);
+  };
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, padding: 24 }}>
+      <div style={{ maxWidth: 800, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28 }}>
+          <button onClick={onBack} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 13px", color: C.muted, fontSize: 18 }}>←</button>
+          <h1 style={{ fontFamily: font, fontSize: 26, color: C.accent }}>🏋️ لیست حرکات</h1>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
+          {data.movementTabs.map(tab => (
+            <div key={tab.id} style={{ position: "relative" }}>
+              <button onClick={() => setActiveTab(tab.id)} style={{ background: activeTab === tab.id ? `linear-gradient(135deg,${C.accent},${C.accentDim})` : C.card, color: activeTab === tab.id ? "#000" : C.text, border: `1px solid ${activeTab === tab.id ? C.accent : C.border}`, borderRadius: 8, padding: "7px 16px", fontWeight: 600, fontSize: 13, paddingRight: 28 }}>{tab.name}</button>
+              <button onClick={() => deleteTab(tab.id)} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: activeTab === tab.id ? "#0008" : C.muted, fontSize: 11 }}>✕</button>
+            </div>
+          ))}
+          <button onClick={() => setShowAddTab(true)} style={{ background: "none", border: `1px dashed ${C.border}`, borderRadius: 8, color: C.muted, padding: "7px 14px", fontSize: 13 }}>+ تب جدید</button>
+        </div>
+        <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontFamily: font, color: C.accent, fontSize: 14 }}>{data.movementTabs.find(t => t.id === activeTab)?.name} <span style={{ color: C.muted, fontSize: 12 }}>({tabMoves.length})</span></span>
+            <Btn size="sm" onClick={() => { setMoveForm({ name: "", tabId: activeTab, subCategory: "", note: "" }); setShowAddMove(true); }}>+ افزودن حرکت</Btn>
+          </div>
+          {tabMoves.length === 0 ? <div style={{ padding: 36, textAlign: "center", color: C.muted }}>هنوز حرکتی ثبت نشده</div> :
+            tabMoves.map((m, i) => (
+              <div key={m.id} style={{ padding: "12px 18px", borderBottom: i < tabMoves.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                <div>
+                  <div style={{ fontWeight: 600, marginBottom: 2 }}>{m.name}</div>
+                  {m.subCategory && <div style={{ fontSize: 12, color: C.accent }}>زیردسته: {m.subCategory}</div>}
+                  {m.note && <div style={{ fontSize: 12, color: C.muted }}>{m.note}</div>}
+                </div>
+                <button onClick={() => setData(d => ({ ...d, movements: d.movements.filter(x => x.id !== m.id) }))} style={{ background: "none", border: "none", color: C.red }}>🗑</button>
+              </div>
+            ))}
+        </div>
+      </div>
+      <Modal open={showAddTab} onClose={() => setShowAddTab(false)} title="تب جدید" width={360}>
+        <Inp label="نام دسته بندی" value={newTabName} onChange={setNewTabName} placeholder="مثل: ساق پا" /><Btn onClick={addTab}>ذخیره</Btn>
+      </Modal>
+      <Modal open={showAddMove} onClose={() => setShowAddMove(false)} title="افزودن حرکت">
+        <Inp label="نام حرکت" value={moveForm.name} onChange={v => setMoveForm(f => ({ ...f, name: v }))} placeholder="مثل: فلای معکوس" />
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 600, textTransform: "uppercase" }}>دسته بندی عضله</div>
+          <select value={moveForm.tabId || activeTab} onChange={e => setMoveForm(f => ({ ...f, tabId: e.target.value }))} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 13px", color: C.text, fontSize: 14, outline: "none" }}>
+            {data.movementTabs.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          </select>
+        </div>
+        <Inp label="زیر دسته (اختیاری)" value={moveForm.subCategory} onChange={v => setMoveForm(f => ({ ...f, subCategory: v }))} placeholder="مثل: سرشانه پشت" />
+        <Inp label="یادداشت (اختیاری)" value={moveForm.note} onChange={v => setMoveForm(f => ({ ...f, note: v }))} placeholder="توضیحات..." />
+        <Btn onClick={addMovement}>ذخیره حرکت</Btn>
+      </Modal>
+    </div>
+  );
+};
+
+// ── Foods Page ─────────────────────────────────────────────────────────────────
+const FoodsPage = ({ data, setData, onBack }) => {
+  const foodCategories = data.foodCategories || [];
+  const foods = data.foods || [];
+  data = { ...data, foodCategories, foods };
+  const [activeCat, setActiveCat] = useState(foodCategories[0]?.id || "");
+  const [showAddCat, setShowAddCat] = useState(false);
+  const [newCatName, setNewCatName] = useState("");
+  const [showAddFood, setShowAddFood] = useState(false);
+  const [foodForm, setFoodForm] = useState({ name: "", categoryId: "", unit: "گرم", caloriePerUnit: "", proteinPerUnit: "" });
+  const catFoods = data.foods.filter(f => f.categoryId === activeCat);
+  const addCat = () => {
+    if (!newCatName.trim()) return;
+    const cat = { id: uid(), name: newCatName.trim() };
+    setData(d => ({ ...d, foodCategories: [...d.foodCategories, cat] }));
+    setActiveCat(cat.id); setNewCatName(""); setShowAddCat(false);
+  };
+  const deleteCat = (id) => {
+    if (data.foodCategories.length <= 1) return;
+    setData(d => ({ ...d, foodCategories: d.foodCategories.filter(c => c.id !== id), foods: d.foods.filter(f => f.categoryId !== id) }));
+    if (activeCat === id) setActiveCat(data.foodCategories.find(c => c.id !== id)?.id || "");
+  };
+  const addFood = () => {
+    if (!foodForm.name.trim()) return;
+    setData(d => ({ ...d, foods: [...d.foods, { id: uid(), ...foodForm, categoryId: foodForm.categoryId || activeCat, caloriePerUnit: Number(foodForm.caloriePerUnit) || 0, proteinPerUnit: Number(foodForm.proteinPerUnit) || 0 }] }));
+    setFoodForm({ name: "", categoryId: "", unit: "گرم", caloriePerUnit: "", proteinPerUnit: "" }); setShowAddFood(false);
+  };
+  return (
+    <div style={{ minHeight: "100vh", background: C.bg, padding: 24 }}>
+      <div style={{ maxWidth: 800, margin: "0 auto" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28 }}>
+          <button onClick={onBack} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 13px", color: C.muted, fontSize: 18 }}>←</button>
+          <h1 style={{ fontFamily: font, fontSize: 26, color: C.accent }}>🥗 لیست غذا</h1>
+        </div>
+        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 20, alignItems: "center" }}>
+          {data.foodCategories.map(cat => (
+            <div key={cat.id} style={{ position: "relative" }}>
+              <button onClick={() => setActiveCat(cat.id)} style={{ background: activeCat === cat.id ? `linear-gradient(135deg,${C.accent},${C.accentDim})` : C.card, color: activeCat === cat.id ? "#000" : C.text, border: `1px solid ${activeCat === cat.id ? C.accent : C.border}`, borderRadius: 8, padding: "7px 16px", fontWeight: 600, fontSize: 13, paddingRight: 28 }}>{cat.name}</button>
+              <button onClick={() => deleteCat(cat.id)} style={{ position: "absolute", right: 6, top: "50%", transform: "translateY(-50%)", background: "none", border: "none", color: activeCat === cat.id ? "#0008" : C.muted, fontSize: 11 }}>✕</button>
+            </div>
+          ))}
+          <button onClick={() => setShowAddCat(true)} style={{ background: "none", border: `1px dashed ${C.border}`, borderRadius: 8, color: C.muted, padding: "7px 14px", fontSize: 13 }}>+ دسته جدید</button>
+        </div>
+        <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}`, overflow: "hidden" }}>
+          <div style={{ padding: "14px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <span style={{ fontFamily: font, color: C.accent, fontSize: 14 }}>{data.foodCategories.find(c => c.id === activeCat)?.name} <span style={{ color: C.muted, fontSize: 12 }}>({catFoods.length})</span></span>
+            <Btn size="sm" onClick={() => { setFoodForm({ name: "", categoryId: activeCat, unit: "گرم", caloriePerUnit: "", proteinPerUnit: "" }); setShowAddFood(true); }}>+ افزودن غذا</Btn>
+          </div>
+          {catFoods.length === 0 ? <div style={{ padding: 36, textAlign: "center", color: C.muted }}>هنوز غذایی ثبت نشده</div> : (
+            <div style={{ overflowX: "auto" }}>
+              <table style={{ width: "100%", borderCollapse: "collapse" }}>
+                <thead><tr style={{ background: C.surface }}>{["نام", "واحد", "کالری/واحد", "پروتئین/واحد", ""].map(h => <th key={h} style={{ padding: "9px 14px", fontSize: 11, color: C.muted, textAlign: "right", fontWeight: 600 }}>{h}</th>)}</tr></thead>
+                <tbody>{catFoods.map((f, i) => (
+                  <tr key={f.id} style={{ borderTop: `1px solid ${C.border}` }}>
+                    <td style={{ padding: "11px 14px", fontWeight: 600 }}>{f.name}</td>
+                    <td style={{ padding: "11px 14px", color: C.muted }}>{f.unit}</td>
+                    <td style={{ padding: "11px 14px", color: C.accent }}>{f.caloriePerUnit} kcal</td>
+                    <td style={{ padding: "11px 14px", color: C.blue }}>{f.proteinPerUnit}g</td>
+                    <td style={{ padding: "11px 14px" }}><button onClick={() => setData(d => ({ ...d, foods: d.foods.filter(x => x.id !== f.id) }))} style={{ background: "none", border: "none", color: C.red }}>🗑</button></td>
+                  </tr>
+                ))}</tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </div>
+      <Modal open={showAddCat} onClose={() => setShowAddCat(false)} title="دسته بندی جدید" width={360}>
+        <Inp label="نام دسته" value={newCatName} onChange={setNewCatName} placeholder="مثل: پیش از خواب" /><Btn onClick={addCat}>ذخیره</Btn>
+      </Modal>
+      <Modal open={showAddFood} onClose={() => setShowAddFood(false)} title="افزودن غذا">
+        <Inp label="نام غذا" value={foodForm.name} onChange={v => setFoodForm(f => ({ ...f, name: v }))} placeholder="مثل: مرغ کبابی" />
+        <div style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 600, textTransform: "uppercase" }}>دسته بندی</div>
+          <select value={foodForm.categoryId || activeCat} onChange={e => setFoodForm(f => ({ ...f, categoryId: e.target.value }))} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 13px", color: C.text, fontSize: 14, outline: "none" }}>
+            {data.foodCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+          </select>
+        </div>
+        <Inp label="واحد" value={foodForm.unit} onChange={v => setFoodForm(f => ({ ...f, unit: v }))} placeholder="گرم، عدد، لیوان..." />
+        <Inp label="کالری / واحد" type="number" value={foodForm.caloriePerUnit} onChange={v => setFoodForm(f => ({ ...f, caloriePerUnit: v }))} />
+        <Inp label="پروتئین / واحد (g)" type="number" value={foodForm.proteinPerUnit} onChange={v => setFoodForm(f => ({ ...f, proteinPerUnit: v }))} />
+        <Btn onClick={addFood}>ذخیره غذا</Btn>
+      </Modal>
+    </div>
+  );
+};
+
+// ── buildFullHtml ──────────────────────────────────────────────────────────────
+function buildFullHtml(ath, pt, trainingDays, nutritionMeals, tCal, tProt) {
+  const totalMealCal = nutritionMeals.reduce((s, m) => s + m.items.reduce((ss, i) => ss + i.cal, 0), 0);
+  const totalMealProt = nutritionMeals.reduce((s, m) => s + m.items.reduce((ss, i) => ss + i.prot, 0), 0);
+
+  const repsDisplay = (ex) => {
+    if (ex.customReps && ex.customReps.length > 0) return ex.customReps.join(" / ");
+    return ex.reps;
+  };
+
+  let trainingSection = "";
+  if (pt !== "nutrition" && trainingDays.length > 0) {
+    trainingSection = `<div class="section-title">🏋️ برنامه تمرینی</div>
+    ${trainingDays.map(d => `<div class="day-card"><div class="day-header">روز ${d.day}</div>
+    <table class="ex-table"><thead><tr><th>حرکت</th><th>دسته بندی</th><th>ست</th><th>تکرار</th><th>یادداشت</th></tr></thead><tbody>
+    ${d.exercises.map(e => `<tr><td>${e.name}</td><td>${e.tabName}</td><td>${e.sets}</td><td>${repsDisplay(e)}</td><td>${e.note || "-"}</td></tr>`).join("")}
+    </tbody></table></div>`).join("")}`;
+  }
+
+  let nutritionSection = "";
+  if (pt !== "training" && nutritionMeals.length > 0) {
+    nutritionSection = `<div class="section-title" style="margin-top:28px">🥗 برنامه تغذیه</div>
+    <div class="macro-bar"><span>هدف: <b>${tCal}</b> / <b>${tProt}</b></span><span>مصرف: <b>${totalMealCal.toFixed(0)}</b> / <b>${totalMealProt.toFixed(1)}</b></span></div>
+    ${nutritionMeals.map(m => `<div class="day-card"><div class="day-header">وعده ${m.meal}</div>
+    <table class="ex-table"><thead><tr><th>غذا</th><th>مقدار</th><th>واحد</th><th>کالری</th><th>پروتئین</th></tr></thead><tbody>
+    ${m.items.map(i => `<tr><td>${i.name}</td><td>${i.amount}</td><td>${i.unit}</td><td>${i.cal.toFixed(0)}</td><td>${i.prot.toFixed(1)}</td></tr>`).join("")}
+    </tbody></table></div>`).join("")}`;
+  }
+
+  return `<!DOCTYPE html><html dir="rtl" lang="fa"><head><meta charset="UTF-8"><title>FIT PRO - ${ath.name}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Vazirmatn:wght@300;400;600;700;900&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+@page{size:A4;margin:12mm}
+body{font-family:'Vazirmatn',sans-serif;background:#fff;color:#1a1a2e;direction:rtl}
+.page{width:100%;max-width:780px;margin:0 auto;padding:20px}
+.border-line{height:4px;background:linear-gradient(90deg,transparent,#b8860b,transparent);border-radius:3px;margin:12px 0}
+.logo{text-align:center;padding:6px 0 10px}
+.logo-title{font-size:30px;font-weight:900;color:#7c5c00;letter-spacing:6px}
+.logo-sub{font-size:10px;color:#888;letter-spacing:3px;margin-top:3px}
+.athlete-box{background:#fdf8ee;border:1px solid #e0c97a;border-radius:10px;padding:12px 16px;margin-bottom:18px;display:flex;justify-content:space-between;flex-wrap:wrap;gap:10px}
+.athlete-item{text-align:center}
+.athlete-label{font-size:9px;color:#999;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+.athlete-value{font-size:14px;font-weight:700;color:#7c5c00}
+.section-title{font-size:15px;font-weight:700;color:#7c5c00;border-bottom:2px solid #e0c97a;padding-bottom:6px;margin-bottom:12px}
+.day-card{margin-bottom:14px;background:#fff;border-radius:8px;overflow:hidden;border:1px solid #ddd;box-shadow:0 1px 4px rgba(0,0,0,0.06)}
+.day-header{background:linear-gradient(135deg,#fdf3d0,#fef9ec);color:#7c5c00;font-weight:700;padding:8px 14px;font-size:13px;border-bottom:1px solid #e0c97a}
+.ex-table{width:100%;border-collapse:collapse}
+.ex-table th{background:#f9f5e7;color:#999;font-size:10px;padding:7px 11px;text-align:right;font-weight:600;border-bottom:1px solid #eee}
+.ex-table td{padding:8px 11px;font-size:12px;border-top:1px solid #f0f0f0;color:#333}
+.ex-table tr:nth-child(even) td{background:#fafafa}
+.macro-bar{display:flex;justify-content:space-between;background:#fdf8ee;border:1px solid #e0c97a;border-radius:7px;padding:10px 14px;margin-bottom:12px;font-size:12px;color:#555}
+.macro-bar b{color:#7c5c00}
+.footer{text-align:center;margin-top:14px;font-size:10px;color:#aaa;letter-spacing:2px;padding-top:8px;border-top:1px solid #eee}
+@media print{
+  body{background:#fff !important;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  .page{padding:0}
+}
+</style></head><body>
+<div class="page">
+  <div class="border-line"></div>
+  <div class="logo"><div class="logo-title">FIT PRO</div><div class="logo-sub">برنامه اختصاصی ورزشکار</div></div>
+  <div class="athlete-box">
+    <div class="athlete-item"><div class="athlete-label">نام</div><div class="athlete-value">${ath.name}</div></div>
+    <div class="athlete-item"><div class="athlete-label">سن</div><div class="athlete-value">${ath.age}</div></div>
+    <div class="athlete-item"><div class="athlete-label">قد</div><div class="athlete-value">${ath.height}</div></div>
+    <div class="athlete-item"><div class="athlete-label">وزن</div><div class="athlete-value">${ath.weight}</div></div>
+    <div class="athlete-item"><div class="athlete-label">هدف</div><div class="athlete-value" style="font-size:12px">${ath.goal}</div></div>
+  </div>
+  ${trainingSection}${nutritionSection}
+  <div class="border-line"></div>
+  <div class="footer">Coach: Hossein Moalemi &nbsp;|&nbsp; FIT PRO &nbsp;|&nbsp; برنامه اختصاصی</div>
+</div>
+</body></html>`;
+}
+
+// ── Program Wizard ─────────────────────────────────────────────────────────────
+const ProgramWizard = ({ data, onBack }) => {
+  const [step, setStep] = useState("athlete");
+  const [athlete, setAthlete] = useState({ name: "", age: "", height: "", weight: "", goal: "" });
+  const [progType, setProgType] = useState("");
+
+  // Training
+  const [numDays, setNumDays] = useState(3);
+  const [currentDay, setCurrentDay] = useState(1);
+  const [allDays, setAllDays] = useState([]);
+  const [dayExercises, setDayExercises] = useState([]);
+  const [lastTabId, setLastTabId] = useState(data.movementTabs[0]?.id || "");
+  const [exForm, setExForm] = useState({ tabId: data.movementTabs[0]?.id || "", movementId: "", sets: 3, reps: 10, customMode: false, customReps: [], note: "" });
+
+  // Nutrition
+  const [numMeals, setNumMeals] = useState(3);
+  const [targetCal, setTargetCal] = useState(2000);
+  const [targetProt, setTargetProt] = useState(150);
+  const [currentMeal, setCurrentMeal] = useState(1);
+  const [allMeals, setAllMeals] = useState([]);
+  const [mealItems, setMealItems] = useState([]);
+  const [lastCatId, setLastCatId] = useState(data.foodCategories[0]?.id || "");
+  const [mealItemForm, setMealItemForm] = useState({ categoryId: data.foodCategories[0]?.id || "", foodId: "", amount: 100 });
+  const [showAddMealItem, setShowAddMealItem] = useState(false);
+
+  // Output
+  const [docHtml, setDocHtml] = useState("");
+
+  // ── custom reps sync ──
+  const syncCustomReps = (sets, prev) => {
+    const arr = Array.from({ length: sets }, (_, i) => prev[i] ?? 10);
+    return arr;
+  };
+
+  const pickerTabMoves = data.movements.filter(m => m.tabId === exForm.tabId);
+
+  const addExercise = () => {
+    const tab = data.movementTabs.find(t => t.id === exForm.tabId);
+    const move = data.movements.find(m => m.id === exForm.movementId);
+    if (!move) return;
+    const ex = {
+      tabId: exForm.tabId, tabName: tab?.name || "",
+      movementId: exForm.movementId, name: move.name,
+      sets: exForm.sets, reps: exForm.customMode ? "custom" : exForm.reps,
+      customReps: exForm.customMode ? [...exForm.customReps] : [],
+      note: exForm.note,
+    };
+    setDayExercises(prev => [...prev, ex]);
+    setLastTabId(exForm.tabId);
+    setExForm(f => ({ ...f, movementId: "", note: "", customMode: false, customReps: [] }));
+  };
+
+  const endDay = () => {
+    const finished = [...allDays, { day: currentDay, exercises: dayExercises }];
+    setAllDays(finished);
+    if (currentDay < numDays) {
+      setCurrentDay(d => d + 1);
+      setDayExercises([]);
+      setExForm(f => ({ ...f, movementId: "", note: "" }));
+    } else {
+      if (progType === "both") setStep("nutrition_setup");
+      else { generateDoc(finished, []); }
+    }
+  };
+
+  const addMealItem = () => {
+    const food = data.foods.find(f => f.id === mealItemForm.foodId);
+    if (!food) return;
+    const cal = food.caloriePerUnit * mealItemForm.amount;
+    const prot = food.proteinPerUnit * mealItemForm.amount;
+    setMealItems(items => [...items, { foodId: food.id, name: food.name, unit: food.unit, amount: mealItemForm.amount, cal, prot }]);
+    setLastCatId(mealItemForm.categoryId);
+    setMealItemForm(f => ({ ...f, foodId: "", amount: 100 }));
+    setShowAddMealItem(false);
+  };
+
+  const endMeal = () => {
+    const newMeals = [...allMeals, { meal: currentMeal, items: mealItems }];
+    setAllMeals(newMeals);
+    if (currentMeal < numMeals) {
+      setCurrentMeal(m => m + 1);
+      setMealItems([]);
+      setMealItemForm(f => ({ ...f, foodId: "", amount: 100 }));
+    } else {
+      generateDoc(allDays, newMeals);
+    }
+  };
+
+  const generateDoc = (trainingDays, nutritionMeals) => {
+    const html = buildFullHtml(athlete, progType, trainingDays, nutritionMeals, targetCal, targetProt);
+    setDocHtml(html);
+    setStep("done");
+  };
+
+  // ── STEPS ──
+
+  if (step === "athlete") return (
+    <div style={{ minHeight: "100vh", background: C.bg, padding: 24 }}>
+      <div style={{ maxWidth: 500, margin: "0 auto", paddingTop: 36 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 14, marginBottom: 28 }}>
+          <button onClick={onBack} style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: "7px 13px", color: C.muted, fontSize: 18 }}>←</button>
+          <h1 style={{ fontFamily: font, fontSize: 22, color: C.accent }}>🚀 شروع برنامه</h1>
+        </div>
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 26 }}>
+          <div style={{ fontFamily: font, color: C.accent, fontSize: 15, marginBottom: 20 }}>مشخصات ورزشکار</div>
+          <Inp label="نام" value={athlete.name} onChange={v => setAthlete(a => ({ ...a, name: v }))} placeholder="نام کامل" />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <Inp label="سن" type="number" value={athlete.age} onChange={v => setAthlete(a => ({ ...a, age: v }))} placeholder="سال" />
+            <Inp label="قد (cm)" type="number" value={athlete.height} onChange={v => setAthlete(a => ({ ...a, height: v }))} placeholder="cm" />
+          </div>
+          <Inp label="وزن (kg)" type="number" value={athlete.weight} onChange={v => setAthlete(a => ({ ...a, weight: v }))} placeholder="kg" />
+          <Inp label="هدف" value={athlete.goal} onChange={v => setAthlete(a => ({ ...a, goal: v }))} placeholder="مثل: کاهش وزن، افزایش حجم..." />
+          <Btn onClick={() => setStep("type")} disabled={!athlete.name}>ادامه →</Btn>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (step === "type") return (
+    <div style={{ minHeight: "100vh", background: C.bg, padding: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ maxWidth: 460, width: "100%" }}>
+        <div style={{ textAlign: "center", marginBottom: 36 }}>
+          <div style={{ fontFamily: font, fontSize: 26, color: C.accent, marginBottom: 8 }}>خوش آمدی {athlete.name}! 💪</div>
+          <div style={{ color: C.muted }}>چه نوع برنامه‌ای می‌خوای؟</div>
+        </div>
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {[{ key: "training", icon: "🏋️", label: "برنامه تمرینی", desc: "طراحی روزهای تمرین با حرکات ورزشی" }, { key: "nutrition", icon: "🥗", label: "برنامه تغذیه", desc: "طراحی وعده‌های غذایی با کالری‌شماری" }, { key: "both", icon: "⚡", label: "هر دو برنامه", desc: "تمرین + تغذیه در یک خروجی کامل" }].map(opt => (
+            <button key={opt.key} onClick={() => { setProgType(opt.key); setStep(opt.key === "nutrition" ? "nutrition_setup" : "training_setup"); }}
+              style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, padding: 18, textAlign: "right", cursor: "pointer", display: "flex", alignItems: "center", gap: 14, transition: "all 0.2s" }}
+              onMouseEnter={e => { e.currentTarget.style.borderColor = C.accent; e.currentTarget.style.background = C.accentGlow; }}
+              onMouseLeave={e => { e.currentTarget.style.borderColor = C.border; e.currentTarget.style.background = C.card; }}>
+              <span style={{ fontSize: 32 }}>{opt.icon}</span>
+              <div><div style={{ fontFamily: font, color: C.accent, fontSize: 15, marginBottom: 3 }}>{opt.label}</div><div style={{ color: C.muted, fontSize: 12 }}>{opt.desc}</div></div>
+            </button>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+
+  if (step === "training_setup") return (
+    <div style={{ minHeight: "100vh", background: C.bg, padding: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ maxWidth: 380, width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 26 }}>
+        <div style={{ fontFamily: font, fontSize: 18, color: C.accent, marginBottom: 22 }}>تعداد روزهای تمرین</div>
+        <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginBottom: 22 }}>
+          {[2, 3, 4, 5, 6].map(n => (
+            <button key={n} onClick={() => setNumDays(n)} style={{ background: numDays === n ? `linear-gradient(135deg,${C.accent},${C.accentDim})` : C.surface, color: numDays === n ? "#000" : C.text, border: `1px solid ${numDays === n ? C.accent : C.border}`, borderRadius: 8, padding: "9px 18px", fontWeight: 700, fontSize: 17 }}>{n}</button>
+          ))}
+        </div>
+        <Btn onClick={() => setStep("training_day")}>شروع ← روز اول</Btn>
+      </div>
+    </div>
+  );
+
+  if (step === "training_day") {
+    const pickerMoves = data.movements.filter(m => m.tabId === exForm.tabId);
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, padding: 24 }}>
+        <div style={{ maxWidth: 700, margin: "0 auto" }}>
+          {/* Header */}
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 24 }}>
+            <div style={{ fontFamily: font, fontSize: 20, color: C.accent }}>روز {currentDay} از {numDays}</div>
+            <div style={{ display: "flex", gap: 5 }}>
+              {Array.from({ length: numDays }).map((_, i) => <div key={i} style={{ width: 30, height: 5, borderRadius: 3, background: i < currentDay ? C.accent : C.border }} />)}
+            </div>
+          </div>
+
+          {/* Added exercises */}
+          {dayExercises.length > 0 && (
+            <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", marginBottom: 14 }}>
+              <div style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}` }}>
+                <span style={{ color: C.muted, fontSize: 12 }}>حرکات اضافه شده ({dayExercises.length})</span>
+              </div>
+              {dayExercises.map((e, i) => (
+                <div key={i} style={{ padding: "10px 16px", borderBottom: i < dayExercises.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <span style={{ background: C.accentGlow, border: `1px solid ${C.accent}44`, color: C.accent, borderRadius: 6, padding: "2px 8px", fontSize: 11 }}>{e.tabName}</span>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{e.name}</span>
+                    <span style={{ color: C.muted, fontSize: 12 }}>{e.sets} ست × {e.customReps?.length > 0 ? e.customReps.join("/") : e.reps}</span>
+                  </div>
+                  <button onClick={() => setDayExercises(ex => ex.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: C.red }}>🗑</button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Inline picker */}
+          <div style={{ border: `2px dashed ${C.border}`, borderRadius: 14, background: C.surface, marginBottom: 18, overflow: "hidden" }}>
+            {/* Tab pills */}
+            <div style={{ padding: "12px 14px 8px", display: "flex", gap: 7, flexWrap: "wrap", borderBottom: `1px solid ${C.border}` }}>
+              {data.movementTabs.map(tab => (
+                <button key={tab.id} onClick={() => setExForm(f => ({ ...f, tabId: tab.id, movementId: "" }))}
+                  style={{ background: exForm.tabId === tab.id ? `linear-gradient(135deg,${C.accent},${C.accentDim})` : C.card, color: exForm.tabId === tab.id ? "#000" : C.mutedLight, border: `1px solid ${exForm.tabId === tab.id ? C.accent : C.border}`, borderRadius: 20, padding: "4px 13px", fontSize: 12, fontWeight: 600 }}>
+                  {tab.name}
+                </button>
+              ))}
+            </div>
+
+            {/* Scrollable movement list */}
+            <div style={{ maxHeight: 200, overflowY: "auto" }}>
+              {pickerMoves.length === 0 ? (
+                <div style={{ padding: 22, textAlign: "center", color: C.muted, fontSize: 13 }}>برای این دسته حرکتی ثبت نشده</div>
+              ) : pickerMoves.map(m => (
+                <div key={m.id} onClick={() => setExForm(f => ({ ...f, movementId: m.id }))}
+                  style={{ padding: "10px 16px", borderBottom: `1px solid ${C.border}`, cursor: "pointer", background: exForm.movementId === m.id ? C.accentGlow : "transparent", borderRight: exForm.movementId === m.id ? `3px solid ${C.accent}` : "3px solid transparent", display: "flex", justifyContent: "space-between", alignItems: "center", transition: "background 0.15s" }}>
+                  <div>
+                    <span style={{ fontWeight: 600, fontSize: 13 }}>{m.name}</span>
+                    {m.subCategory && <span style={{ color: C.muted, fontSize: 11, marginRight: 7 }}>{m.subCategory}</span>}
+                  </div>
+                  {exForm.movementId === m.id && <span style={{ color: C.accent }}>✓</span>}
+                </div>
+              ))}
+            </div>
+
+            {/* Sets / Reps row — shown when movement selected */}
+            {exForm.movementId && (
+              <div style={{ padding: "12px 16px", borderTop: `1px solid ${C.border}`, background: C.card }}>
+                {/* Sets + toggle row */}
+                <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 10 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontSize: 10, color: C.muted, marginBottom: 4, fontWeight: 600 }}>تعداد ست</div>
+                    <input type="number" value={exForm.sets} min={1} max={10}
+                      onChange={e => {
+                        const s = Number(e.target.value);
+                        setExForm(f => ({ ...f, sets: s, customReps: f.customMode ? syncCustomReps(s, f.customReps) : f.customReps }));
+                      }}
+                      style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 10px", color: C.text, fontSize: 14, outline: "none" }} />
+                  </div>
+                  {/* Toggle custom mode */}
+                  <div style={{ paddingTop: 16 }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
+                      <div onClick={() => setExForm(f => {
+                          const next = !f.customMode;
+                          return { ...f, customMode: next, customReps: next ? syncCustomReps(f.sets, f.customReps) : f.customReps };
+                        })}
+                        style={{ width: 36, height: 20, borderRadius: 10, background: exForm.customMode ? C.accent : C.border, position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+                        <div style={{ position: "absolute", top: 2, left: exForm.customMode ? 18 : 2, width: 16, height: 16, borderRadius: "50%", background: exForm.customMode ? "#000" : C.muted, transition: "left 0.2s" }} />
+                      </div>
+                      <span style={{ fontSize: 11, color: exForm.customMode ? C.accent : C.muted, whiteSpace: "nowrap" }}>تکرار دستی هر ست</span>
+                    </label>
+                  </div>
+                  {!exForm.customMode && (
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 10, color: C.muted, marginBottom: 4, fontWeight: 600 }}>تکرار (همه ست‌ها)</div>
+                      <input type="number" value={exForm.reps} onChange={e => setExForm(f => ({ ...f, reps: Number(e.target.value) }))}
+                        style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 10px", color: C.text, fontSize: 14, outline: "none" }} />
+                    </div>
+                  )}
+                </div>
+
+                {/* Custom reps per set */}
+                {exForm.customMode && (
+                  <div style={{ marginBottom: 10 }}>
+                    <div style={{ fontSize: 10, color: C.muted, marginBottom: 6, fontWeight: 600 }}>تکرار هر ست</div>
+                    <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      {exForm.customReps.map((r, i) => (
+                        <div key={i} style={{ textAlign: "center" }}>
+                          <div style={{ fontSize: 10, color: C.muted, marginBottom: 3 }}>ست {i + 1}</div>
+                          <input type="number" value={r} onChange={e => {
+                            const arr = [...exForm.customReps];
+                            arr[i] = Number(e.target.value);
+                            setExForm(f => ({ ...f, customReps: arr }));
+                          }} style={{ width: 52, background: C.surface, border: `1px solid ${C.accent}66`, borderRadius: 7, padding: "6px 8px", color: C.accent, fontSize: 14, outline: "none", textAlign: "center", fontWeight: 700 }} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div style={{ display: "grid", gridTemplateColumns: "1fr auto", gap: 10, alignItems: "flex-end" }}>
+                  <div>
+                    <div style={{ fontSize: 10, color: C.muted, marginBottom: 4, fontWeight: 600 }}>یادداشت (اختیاری)</div>
+                    <input value={exForm.note} onChange={e => setExForm(f => ({ ...f, note: e.target.value }))} placeholder="اختیاری..."
+                      style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 7, padding: "7px 10px", color: C.text, fontSize: 13, outline: "none" }} />
+                  </div>
+                  <Btn onClick={addExercise} style={{ whiteSpace: "nowrap" }}>+ افزودن</Btn>
+                </div>
+              </div>
+            )}
+            {!exForm.movementId && pickerMoves.length > 0 && (
+              <div style={{ padding: "10px", textAlign: "center", color: C.muted, fontSize: 12 }}>روی یک حرکت کلیک کن</div>
+            )}
+          </div>
+
+          <Btn onClick={endDay} disabled={dayExercises.length === 0}>
+            {currentDay < numDays ? `پایان روز ${currentDay} ← روز ${currentDay + 1}` : "پایان تمرین → تولید برنامه"}
+          </Btn>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === "nutrition_setup") return (
+    <div style={{ minHeight: "100vh", background: C.bg, padding: 24, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ maxWidth: 380, width: "100%", background: C.card, border: `1px solid ${C.border}`, borderRadius: 16, padding: 26 }}>
+        <div style={{ fontFamily: font, fontSize: 18, color: C.accent, marginBottom: 22 }}>تنظیمات برنامه غذایی</div>
+        <Inp label="تعداد وعده‌ها" type="number" value={numMeals} onChange={v => setNumMeals(Number(v))} />
+        <Inp label="هدف کالری روزانه (kcal)" type="number" value={targetCal} onChange={v => setTargetCal(Number(v))} />
+        <Inp label="هدف پروتئین روزانه (g)" type="number" value={targetProt} onChange={v => setTargetProt(Number(v))} />
+        <Btn onClick={() => setStep("nutrition_meal")}>شروع ← وعده اول</Btn>
+      </div>
+    </div>
+  );
+
+  if (step === "nutrition_meal") {
+    const mealUsedCal = mealItems.reduce((s, i) => s + i.cal, 0);
+    const mealUsedProt = mealItems.reduce((s, i) => s + i.prot, 0);
+    const prevCal = allMeals.reduce((s, m) => s + m.items.reduce((ss, i) => ss + i.cal, 0), 0);
+    const prevProt = allMeals.reduce((s, m) => s + m.items.reduce((ss, i) => ss + i.prot, 0), 0);
+    const totalUsedCal = prevCal + mealUsedCal;
+    const totalUsedProt = prevProt + mealUsedProt;
+    const catFoodsFiltered = data.foods.filter(f => f.categoryId === mealItemForm.categoryId);
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, padding: 24 }}>
+        <div style={{ maxWidth: 680, margin: "0 auto" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 22 }}>
+            <div style={{ fontFamily: font, fontSize: 20, color: C.accent }}>وعده {currentMeal} از {numMeals}</div>
+            <div style={{ display: "flex", gap: 5 }}>
+              {Array.from({ length: numMeals }).map((_, i) => <div key={i} style={{ width: 30, height: 5, borderRadius: 3, background: i < currentMeal ? C.accent : C.border }} />)}
+            </div>
+          </div>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: 14, marginBottom: 18, display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            {[{ label: "کالری باقی مانده", value: `${(targetCal - totalUsedCal).toFixed(0)} kcal`, color: (targetCal - totalUsedCal) < 0 ? C.red : C.accent }, { label: "پروتئین باقی مانده", value: `${(targetProt - totalUsedProt).toFixed(1)}g`, color: (targetProt - totalUsedProt) < 0 ? C.red : C.blue }].map(item => (
+              <div key={item.label} style={{ textAlign: "center" }}>
+                <div style={{ fontSize: 11, color: C.muted, marginBottom: 3 }}>{item.label}</div>
+                <div style={{ fontSize: 20, fontWeight: 700, color: item.color }}>{item.value}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 14, overflow: "hidden", marginBottom: 18 }}>
+            <div style={{ padding: "12px 18px", borderBottom: `1px solid ${C.border}`, display: "flex", justifyContent: "space-between" }}>
+              <span style={{ color: C.muted, fontSize: 13 }}>آیتم‌های وعده {currentMeal}</span>
+              <Btn size="sm" onClick={() => { setMealItemForm({ categoryId: lastCatId, foodId: "", amount: 100 }); setShowAddMealItem(true); }}>+ افزودن</Btn>
+            </div>
+            {mealItems.length === 0 ? <div style={{ padding: 28, textAlign: "center", color: C.muted }}>هنوز آیتمی اضافه نشده</div> :
+              mealItems.map((item, i) => (
+                <div key={i} style={{ padding: "10px 18px", borderBottom: i < mealItems.length - 1 ? `1px solid ${C.border}` : "none", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                  <div>
+                    <span style={{ fontWeight: 600 }}>{item.name}</span>
+                    <span style={{ color: C.muted, fontSize: 12, marginRight: 7 }}>{item.amount} {item.unit}</span>
+                    <span style={{ color: C.accent, fontSize: 12, marginRight: 5 }}>{item.cal.toFixed(0)} kcal</span>
+                    <span style={{ color: C.blue, fontSize: 12 }}>{item.prot.toFixed(1)}g</span>
+                  </div>
+                  <button onClick={() => setMealItems(items => items.filter((_, j) => j !== i))} style={{ background: "none", border: "none", color: C.red }}>🗑</button>
+                </div>
+              ))}
+          </div>
+          <Btn onClick={endMeal} disabled={mealItems.length === 0}>
+            {currentMeal < numMeals ? `پایان وعده ${currentMeal} ← وعده ${currentMeal + 1}` : "پایان → تولید برنامه"}
+          </Btn>
+        </div>
+        <Modal open={showAddMealItem} onClose={() => setShowAddMealItem(false)} title={`افزودن غذا - وعده ${currentMeal}`}>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 600, textTransform: "uppercase" }}>دسته بندی</div>
+            <select value={mealItemForm.categoryId} onChange={e => setMealItemForm(f => ({ ...f, categoryId: e.target.value, foodId: "" }))} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 13px", color: C.text, fontSize: 14, outline: "none" }}>
+              {data.foodCategories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </div>
+          <div style={{ marginBottom: 14 }}>
+            <div style={{ fontSize: 11, color: C.muted, marginBottom: 5, fontWeight: 600, textTransform: "uppercase" }}>غذا</div>
+            <select value={mealItemForm.foodId} onChange={e => setMealItemForm(f => ({ ...f, foodId: e.target.value }))} style={{ width: "100%", background: C.surface, border: `1px solid ${C.border}`, borderRadius: 8, padding: "9px 13px", color: mealItemForm.foodId ? C.text : C.muted, fontSize: 14, outline: "none" }}>
+              <option value="">انتخاب غذا...</option>
+              {catFoodsFiltered.map(f => <option key={f.id} value={f.id}>{f.name} ({f.caloriePerUnit} kcal/{f.unit})</option>)}
+            </select>
+          </div>
+          <Inp label={`مقدار (${data.foods.find(f => f.id === mealItemForm.foodId)?.unit || "واحد"})`} type="number" value={mealItemForm.amount} onChange={v => setMealItemForm(f => ({ ...f, amount: Number(v) }))} />
+          {mealItemForm.foodId && (() => {
+            const food = data.foods.find(f => f.id === mealItemForm.foodId);
+            if (!food) return null;
+            return <div style={{ background: C.surface, borderRadius: 8, padding: 10, marginBottom: 14, display: "flex", gap: 18 }}>
+              <div><span style={{ color: C.muted, fontSize: 12 }}>کالری: </span><span style={{ color: C.accent, fontWeight: 700 }}>{(food.caloriePerUnit * mealItemForm.amount).toFixed(0)} kcal</span></div>
+              <div><span style={{ color: C.muted, fontSize: 12 }}>پروتئین: </span><span style={{ color: C.blue, fontWeight: 700 }}>{(food.proteinPerUnit * mealItemForm.amount).toFixed(1)}g</span></div>
+            </div>;
+          })()}
+          <Btn onClick={addMealItem} disabled={!mealItemForm.foodId}>افزودن</Btn>
+        </Modal>
+      </div>
+    );
+  }
+
+  // ── DONE ──
+  if (step === "done") {
+    const downloadAsImage = () => {
+      // Build canvas from scratch using the plan data
+      const canvas = document.createElement("canvas");
+      const W = 794; // A4 ~96dpi width
+      const scale = 2; // retina
+      canvas.width = W * scale;
+
+      const ctx = canvas.getContext("2d");
+      ctx.scale(scale, scale);
+
+      // ── measure total height first ──
+      const lineH = 22;
+      const pad = 32;
+      const tableRowH = 26;
+      const headerH = 120;
+      const athleteBoxH = 70;
+
+      let totalH = pad + headerH + athleteBoxH + pad;
+      if (progType !== "nutrition") {
+        allDays.forEach(d => { totalH += 36 + 28 + d.exercises.length * tableRowH + 20; });
+      }
+      if (progType !== "training") {
+        totalH += 50;
+        allMeals.forEach(m => { totalH += 36 + 28 + m.items.length * tableRowH + 20; });
+      }
+      totalH += 60;
+      canvas.height = totalH * scale;
+      ctx.scale(1, 1); // reset after height calc
+      canvas.width = W * scale;
+      canvas.height = totalH * scale;
+      ctx.scale(scale, scale);
+
+      // ── helpers ──
+      const BG = "#ffffff", CARD = "#fdf8ee", BORDER = "#e0c97a";
+      const GOLD = "#7c5c00", MUTED = "#888888", WHITE = "#1a1a2e", BLUE = "#1d4ed8";
+
+      const fillRect = (x, y, w, h, color) => { ctx.fillStyle = color; ctx.fillRect(x, y, w, h); };
+      const text = (t, x, y, color, size, align = "right", bold = false) => {
+        ctx.fillStyle = color;
+        ctx.font = `${bold ? "700" : "400"} ${size}px 'Tahoma', sans-serif`;
+        ctx.textAlign = align;
+        ctx.fillText(t, x, y);
+      };
+      const line = (x1, y1, x2, y2, color, lw = 1) => {
+        ctx.strokeStyle = color; ctx.lineWidth = lw;
+        ctx.beginPath(); ctx.moveTo(x1, y1); ctx.lineTo(x2, y2); ctx.stroke();
+      };
+      const gradLine = (x, y, w) => {
+        const g = ctx.createLinearGradient(x, y, x + w, y);
+        g.addColorStop(0, "transparent"); g.addColorStop(0.5, "#b8860b"); g.addColorStop(1, "transparent");
+        ctx.fillStyle = g; ctx.fillRect(x, y, w, 4);
+      };
+      const roundRect = (x, y, w, h, r, color) => {
+        ctx.fillStyle = color;
+        ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.fill();
+      };
+      // border helper (no fill)
+      const strokeRect = (x, y, w, h, r, color) => {
+        ctx.strokeStyle = color; ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.roundRect(x, y, w, h, r); ctx.stroke();
+      };
+
+      // ── draw background ──
+      fillRect(0, 0, W, totalH, BG);
+
+      let y = pad;
+
+      // top gold line
+      gradLine(0, y, W); y += 14;
+
+      // logo
+      ctx.textAlign = "center";
+      ctx.fillStyle = GOLD;
+      ctx.font = "900 28px 'Georgia', serif";
+      ctx.fillText("FIT PRO", W / 2, y + 28); y += 36;
+      text("برنامه اختصاصی ورزشکار", W / 2, y + 14, MUTED, 11, "center");
+      y += 28;
+
+      // athlete box
+      roundRect(pad, y, W - pad * 2, 56, 10, CARD);
+      const fields = [
+        { label: "نام", val: athlete.name },
+        { label: "سن", val: athlete.age },
+        { label: "قد", val: athlete.height },
+        { label: "وزن", val: athlete.weight },
+        { label: "هدف", val: athlete.goal },
+      ];
+      const fw = (W - pad * 2) / fields.length;
+      fields.forEach((f, i) => {
+        const cx = pad + fw * i + fw / 2;
+        text(f.label, cx, y + 18, MUTED, 9, "center");
+        text(f.val, cx, y + 38, GOLD, 13, "center", true);
+      });
+      y += 70;
+
+      // ── training ──
+      if (progType !== "nutrition" && allDays.length > 0) {
+        text("🏋️ برنامه تمرینی", W - pad, y, GOLD, 15, "right", true);
+        line(pad, y + 6, W - pad, y + 6, BORDER);
+        y += 24;
+
+        allDays.forEach(d => {
+          // day card
+          roundRect(pad, y, W - pad * 2, 30 + d.exercises.length * tableRowH, 8, CARD);
+          // day header
+          ctx.fillStyle = "#e8c96d18";
+          ctx.beginPath(); ctx.roundRect(pad, y, W - pad * 2, 28, [8, 8, 0, 0]); ctx.fill();
+          text(`روز ${d.day}`, W - pad - 10, y + 19, GOLD, 13, "right", true);
+          y += 28;
+
+          // table header
+          const cols = ["حرکت", "دسته بندی", "ست", "تکرار", "یادداشت"];
+          const colW = [(W - pad * 2) * 0.32, (W - pad * 2) * 0.22, (W - pad * 2) * 0.1, (W - pad * 2) * 0.18, (W - pad * 2) * 0.18];
+          fillRect(pad, y, W - pad * 2, 24, "#f5eedc");
+          let cx2 = W - pad - 8;
+          cols.forEach((c, ci) => { text(c, cx2, y + 16, "#a07840", 9, "right"); cx2 -= colW[ci]; });
+          y += 24;
+
+          d.exercises.forEach((e, ei) => {
+            if (ei % 2 === 1) fillRect(pad, y, W - pad * 2, tableRowH, "#fdf9f0");
+            const repsStr = e.customReps?.length > 0 ? e.customReps.join("/") : String(e.reps);
+            const vals = [e.name, e.tabName, String(e.sets), repsStr, e.note || "-"];
+            let cx3 = W - pad - 8;
+            vals.forEach((v, vi) => {
+              const col = vi === 0 ? "#2c2c3e" : vi === 1 ? GOLD : "#666666";
+              text(v, cx3, y + 17, col, vi === 0 ? 12 : 11, "right", vi === 0);
+              cx3 -= colW[vi];
+            });
+            y += tableRowH;
+          });
+          y += 18;
+        });
+      }
+
+      // ── nutrition ──
+      if (progType !== "training" && allMeals.length > 0) {
+        const tCal2 = allMeals.reduce((s, m) => s + m.items.reduce((ss, i) => ss + i.cal, 0), 0);
+        const tProt2 = allMeals.reduce((s, m) => s + m.items.reduce((ss, i) => ss + i.prot, 0), 0);
+        y += 8;
+        text("🥗 برنامه تغذیه", W - pad, y, GOLD, 15, "right", true);
+        line(pad, y + 6, W - pad, y + 6, BORDER);
+        y += 24;
+
+        // macro bar
+        roundRect(pad, y, W - pad * 2, 30, 7, CARD);
+        text(`هدف: ${targetCal} / ${targetProt}`, W - pad - 10, y + 19, MUTED, 11, "right");
+        text(`مصرف: ${tCal2.toFixed(0)} / ${tProt2.toFixed(1)}`, pad + 10, y + 19, GOLD, 11, "left", true);
+        y += 42;
+
+        allMeals.forEach(m => {
+          const mealCols = ["غذا", "مقدار", "واحد", "کالری", "پروتئین"];
+          const mealColW = [(W - pad * 2) * 0.35, (W - pad * 2) * 0.15, (W - pad * 2) * 0.15, (W - pad * 2) * 0.18, (W - pad * 2) * 0.17];
+          roundRect(pad, y, W - pad * 2, 30 + m.items.length * tableRowH, 8, CARD);
+          ctx.fillStyle = "#e8c96d18";
+          ctx.beginPath(); ctx.roundRect(pad, y, W - pad * 2, 28, [8, 8, 0, 0]); ctx.fill();
+          text(`وعده ${m.meal}`, W - pad - 10, y + 19, GOLD, 13, "right", true);
+          y += 28;
+          fillRect(pad, y, W - pad * 2, 24, "#f5eedc");
+          let hx = W - pad - 8;
+          mealCols.forEach((c, ci) => { text(c, hx, y + 16, "#a07840", 9, "right"); hx -= mealColW[ci]; });
+          y += 24;
+          m.items.forEach((item, ii) => {
+            if (ii % 2 === 1) fillRect(pad, y, W - pad * 2, tableRowH, "#fdf9f0");
+            const vals2 = [item.name, String(item.amount), item.unit, item.cal.toFixed(0), item.prot.toFixed(1)];
+            let vx = W - pad - 8;
+            vals2.forEach((v, vi) => {
+              const col = vi === 0 ? "#2c2c3e" : vi === 3 ? GOLD : vi === 4 ? BLUE : "#666666";
+              text(v, vx, y + 17, col, vi === 0 ? 12 : 11, "right", vi === 0);
+              vx -= mealColW[vi];
+            });
+            y += tableRowH;
+          });
+          y += 18;
+        });
+      }
+
+      // bottom line + footer
+      y += 8;
+      gradLine(0, y, W); y += 14;
+      text("Coach: Hossein Moalemi  |  FIT PRO  |  برنامه اختصاصی", W / 2, y + 14, MUTED, 10, "center");
+
+      // ── download ──
+      const link = document.createElement("a");
+      link.download = `fitpro-${athlete.name}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+    };
+
+    return (
+      <div style={{ minHeight: "100vh", background: C.bg, display: "flex", flexDirection: "column", alignItems: "center", padding: 24 }}>
+        <div style={{ width: "100%", maxWidth: 860 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 14 }}>
+            <div>
+              <div style={{ fontFamily: font, fontSize: 22, color: C.accent }}>🏆 برنامه آماده شد!</div>
+              <div style={{ color: C.muted, fontSize: 13, marginTop: 4 }}>پیش‌نمایش در پایین</div>
+            </div>
+            <div style={{ display: "flex", gap: 10 }}>
+              <Btn onClick={downloadAsImage}>⬇ دانلود تصویر PNG</Btn>
+              <Btn variant="dark" onClick={onBack}>🏠 خانه</Btn>
+            </div>
+          </div>
+          <div style={{ border: `1px solid ${C.border}`, borderRadius: 12, overflow: "hidden", height: 620 }}>
+            <iframe srcDoc={docHtml} style={{ width: "100%", height: "100%", border: "none" }} title="fitness-plan" />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return null;
+};
+
+// ── App ────────────────────────────────────────────────────────────────────────
+function App() {
+  const [page, setPage] = useState("splash");
+  const [data, setData] = useState(defaultData());
+  const [loading, setLoading] = useState(true);
+  const [saveStatus, setSaveStatus] = useState(""); // "saving" | "saved" | ""
+
+  useEffect(() => {
+    const db = window._firebaseDB;
+    if (!db) { setLoading(false); return; }
+    const ref = db.ref("fitpro_data");
+    ref.once("value").then(snap => {
+      const val = snap.val();
+      if (val) setData(val);
+      setLoading(false);
+    }).catch(() => setLoading(false));
+    // live sync
+    ref.on("value", snap => {
+      const val = snap.val();
+      if (val) setData(val);
+    });
+    return () => ref.off();
+  }, []);
+
+  const updateData = (fn) => {
+    setData(d => {
+      const next = typeof fn === "function" ? fn(d) : fn;
+      const db = window._firebaseDB;
+      if (db) {
+        setSaveStatus("saving");
+        db.ref("fitpro_data").set(next)
+          .then(() => { setSaveStatus("saved"); setTimeout(() => setSaveStatus(""), 2000); })
+          .catch(() => setSaveStatus(""));
+      }
+      return next;
+    });
+  };
+
+  if (loading) return (
+    <div style={{ minHeight: "100vh", background: "#0a0c10", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 20 }}>
+      <div style={{ fontSize: 48 }}>💪</div>
+      <div style={{ color: "#e8c96d", fontFamily: "'Cinzel',serif", fontSize: 20, letterSpacing: 3 }}>FIT PRO</div>
+      <div style={{ color: "#7a8099", fontSize: 13 }}>در حال بارگذاری...</div>
+    </div>
+  );
+
+  return (
+    <>
+      <style>{globalStyles}</style>
+      {/* Save indicator */}
+      {saveStatus && (
+        <div style={{ position: "fixed", top: 12, left: "50%", transform: "translateX(-50%)", background: saveStatus === "saved" ? "#4ecb71" : "#e8c96d", color: "#000", borderRadius: 20, padding: "5px 16px", fontSize: 12, fontWeight: 700, zIndex: 9999, transition: "all 0.3s" }}>
+          {saveStatus === "saving" ? "⏳ ذخیره..." : "✓ ذخیره شد"}
+        </div>
+      )}
+      {page === "splash" && <Splash onEnter={setPage} />}
+      {page === "movements" && <MovementsPage data={data} setData={updateData} onBack={() => setPage("splash")} />}
+      {page === "foods" && <FoodsPage data={data} setData={updateData} onBack={() => setPage("splash")} />}
+      {page === "program" && <ProgramWizard data={data} onBack={() => setPage("splash")} />}
+    </>
+  );
+}
+
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
